@@ -1,0 +1,1 @@
+{"meta":{"event_name":"subscription_created"},"data":{"id":"123","type":"subscriptions","attributes":{"status":"active","custom_data":{"tenant_id":"42"}}}}

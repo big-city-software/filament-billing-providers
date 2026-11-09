@@ -1,0 +1,6 @@
+{
+    "secret": "test_ls_secret_abc123",
+    "signature": "d334266b40e525805b945cb744cb6ed1769766be6b1d188eb2ce555ab92cf343",
+    "header": "X-Signature",
+    "note": "FAKE fixture \u2014 HMAC-SHA256 hex of raw body with UTF-8 secret (Lemon Squeezy algorithm). Not a real LS payload."
+}

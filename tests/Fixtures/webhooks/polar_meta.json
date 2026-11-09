@@ -1,0 +1,10 @@
+{
+    "secret": "whsec_dGVzdF9wb2xhcl9mYWtlX3NlY3JldF9mb3JfdW5pdA",
+    "webhook_id": "msg_test_01",
+    "webhook_timestamp": "1710000000",
+    "signature_legacy_v1": "DAQFYTy9PP6qxiVsa3aAuCI5EmRdL2XWFTsn4GHf7aI=",
+    "signature_standard_v1": "RElXeg4JyBK2+GIDlDzmWMxtxD5hAyhDohLu0LgW54U=",
+    "header_legacy": "v1,DAQFYTy9PP6qxiVsa3aAuCI5EmRdL2XWFTsn4GHf7aI=",
+    "header_standard": "v1,RElXeg4JyBK2+GIDlDzmWMxtxD5hAyhDohLu0LgW54U=",
+    "note": "FAKE fixture \u2014 Standard Webhooks style HMAC-SHA256 base64 of \"{id}.{ts}.{body}\". Legacy key = UTF-8 of full whsec_\u2026; standard key = base64-decode after whsec_. Not a real Polar delivery."
+}
