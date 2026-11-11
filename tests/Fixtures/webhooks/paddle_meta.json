@@ -1,0 +1,8 @@
+{
+    "secret": "pdl_ntfset_test_fake_secret_do_not_use",
+    "timestamp": "1671552777",
+    "signature_h1": "0edb99b7237db93c737355b047531ae4f2822fe83748fddb9b11ce77efc96d6c",
+    "header": "Paddle-Signature",
+    "header_value": "ts=1671552777;h1=0edb99b7237db93c737355b047531ae4f2822fe83748fddb9b11ce77efc96d6c",
+    "note": "FAKE fixture \u2014 HMAC-SHA256 hex of \"{ts}:{raw_body}\" (Paddle Billing algorithm). Not a real Paddle event."
+}

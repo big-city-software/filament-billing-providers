@@ -1,0 +1,11 @@
+/vendor/
+/.phpunit.cache/
+/phpunit.phar
+/composer.lock
+/.idea/
+/.vscode/
+*.swp
+.DS_Store
+.env
+.env.*
+auth.json

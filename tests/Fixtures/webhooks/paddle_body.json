@@ -1,0 +1,1 @@
+{"event_id":"evt_test_01","event_type":"subscription.activated","data":{"id":"sub_01","status":"active","custom_data":{"tenant_id":"42"}}}
