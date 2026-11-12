@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace SegmentHoldings\FilamentBillingProviders\Tests\Unit;
 
-use PHPUnit\Framework\TestCase;
+use SegmentHoldings\FilamentBillingProviders\Tests\TestCase;
 use SegmentHoldings\FilamentBillingProviders\Support\ConfigSubscriptionChecker;
 use SegmentHoldings\FilamentBillingProviders\Support\LemonSqueezySubscriptionChecker;
 use SegmentHoldings\FilamentBillingProviders\Support\PaddleSubscriptionChecker;

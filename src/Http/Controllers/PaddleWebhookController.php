@@ -20,8 +20,11 @@ final class PaddleWebhookController extends AbstractWebhookController
         parent::__construct($verifier ?? new PaddleSignatureVerifier);
     }
 
-    protected function parse(string $rawBody): SubscriptionState
+    /**
+     * @param  array<string, string|list<string>>  $headers
+     */
+    protected function parse(string $rawBody, array $headers): SubscriptionState
     {
-        return $this->parser->parsePaddle($rawBody);
+        return $this->parser->parsePaddle($rawBody, $headers);
     }
 }

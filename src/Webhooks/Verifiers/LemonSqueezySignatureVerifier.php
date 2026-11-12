@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SegmentHoldings\FilamentBillingProviders\Webhooks\Verifiers;
 
 use SegmentHoldings\FilamentBillingProviders\Contracts\WebhookSignatureVerifier;
+use SegmentHoldings\FilamentBillingProviders\Webhooks\Signature;
 
 /**
  * Lemon Squeezy webhook signature verifier.
@@ -26,7 +27,7 @@ final class LemonSqueezySignatureVerifier implements WebhookSignatureVerifier
 
         $expected = hash_hmac('sha256', $rawBody, $secret);
 
-        return hash_equals($expected, strtolower($signature));
+        return Signature::equals($expected, strtolower(trim($signature)));
     }
 
     /**

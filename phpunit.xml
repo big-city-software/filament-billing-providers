@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
-         bootstrap="tests/bootstrap.php"
+         bootstrap="vendor/autoload.php"
          colors="true"
          cacheDirectory=".phpunit.cache"
 >
@@ -9,10 +9,17 @@
         <testsuite name="Unit">
             <directory>tests/Unit</directory>
         </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>
             <directory>src</directory>
         </include>
     </source>
+    <php>
+        <env name="FILAMENT_BILLING_WEBHOOKS_ENABLED" value="true"/>
+        <env name="FILAMENT_BILLING_PERSISTENCE_ENABLED" value="true"/>
+    </php>
 </phpunit>

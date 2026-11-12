@@ -20,8 +20,11 @@ final class PolarWebhookController extends AbstractWebhookController
         parent::__construct($verifier ?? new PolarSignatureVerifier);
     }
 
-    protected function parse(string $rawBody): SubscriptionState
+    /**
+     * @param  array<string, string|list<string>>  $headers
+     */
+    protected function parse(string $rawBody, array $headers): SubscriptionState
     {
-        return $this->parser->parsePolar($rawBody);
+        return $this->parser->parsePolar($rawBody, $headers);
     }
 }

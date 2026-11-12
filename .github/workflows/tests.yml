@@ -1,0 +1,56 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  phpunit:
+    name: PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }} / Filament ${{ matrix.filament }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: "8.2"
+            laravel: "11.*"
+            filament: "^4.15"
+            testbench: "^9.18"
+          - php: "8.3"
+            laravel: "12.*"
+            filament: "^4.15"
+            testbench: "^10.6"
+          - php: "8.4"
+            laravel: "12.*"
+            filament: "^5.10"
+            testbench: "^10.6"
+          - php: "8.4"
+            laravel: "13.*"
+            filament: "^5.10"
+            testbench: "^11.0"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, curl, mbstring, zip, intl, sqlite, pdo_sqlite
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: |
+          composer update --prefer-dist --no-interaction --no-progress --no-ansi \
+            --with="laravel/framework:${{ matrix.laravel }}" \
+            --with="filament/filament:${{ matrix.filament }}" \
+            --with="orchestra/testbench:${{ matrix.testbench }}"
+
+      - name: PHPUnit
+        run: vendor/bin/phpunit

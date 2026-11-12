@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace SegmentHoldings\FilamentBillingProviders\Tests\Unit;
 
-use PHPUnit\Framework\TestCase;
+use SegmentHoldings\FilamentBillingProviders\Tests\TestCase;
 use SegmentHoldings\FilamentBillingProviders\Webhooks\Verifiers\LemonSqueezySignatureVerifier;
 use SegmentHoldings\FilamentBillingProviders\Webhooks\Verifiers\PaddleSignatureVerifier;
 use SegmentHoldings\FilamentBillingProviders\Webhooks\Verifiers\PolarSignatureVerifier;
@@ -130,5 +130,31 @@ final class WebhookSignatureVerifierTest extends TestCase
         $verifier = new PolarSignatureVerifier(now: 1710000000);
 
         $this->assertFalse($verifier->verify('{}', [], 'whsec_test'));
+    }
+
+    public function test_polar_rejects_timestamp_outside_tolerance(): void
+    {
+        $body = file_get_contents($this->fixtures.'/polar_body.json');
+        $meta = json_decode(file_get_contents($this->fixtures.'/polar_meta.json'), true);
+
+        $verifier = new PolarSignatureVerifier(
+            toleranceSeconds: 300,
+            now: (int) $meta['webhook_timestamp'] + 301,
+        );
+
+        $this->assertFalse($verifier->verify($body, [
+            'webhook-id' => $meta['webhook_id'],
+            'webhook-timestamp' => $meta['webhook_timestamp'],
+            'webhook-signature' => $meta['header_legacy'],
+        ], $meta['secret']));
+    }
+
+    public function test_short_signature_does_not_throw(): void
+    {
+        $verifier = new LemonSqueezySignatureVerifier;
+
+        $this->assertFalse($verifier->verify('{"_fixture":"FAKE"}', [
+            'X-Signature' => 'deadbeef',
+        ], 'fake_ls_test_secret_1'));
     }
 }

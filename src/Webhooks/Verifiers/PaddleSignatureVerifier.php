@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SegmentHoldings\FilamentBillingProviders\Webhooks\Verifiers;
 
 use SegmentHoldings\FilamentBillingProviders\Contracts\WebhookSignatureVerifier;
+use SegmentHoldings\FilamentBillingProviders\Webhooks\Signature;
 
 /**
  * Paddle Billing webhook signature verifier.
@@ -15,8 +16,11 @@ use SegmentHoldings\FilamentBillingProviders\Contracts\WebhookSignatureVerifier;
  * Signed content: "{ts}:{raw_body}"
  * Digest: HMAC-SHA256, lowercase hex, keyed with the notification-destination secret.
  *
- * Paddle SDK default tolerance is very tight (5s); we default to 300s for clock skew
- * in self-hosted apps. Pass $toleranceSeconds to tighten.
+ * Paddle's SDK rejects timestamps more than five seconds from now:
+ * https://developer.paddle.com/webhooks/about/signature-verification
+ * This package defaults to 300 seconds so a delayed delivery is not refused
+ * solely for that window. Set webhooks.tolerance_seconds.paddle to 5 to match
+ * the SDK. Whether Paddle refreshes `ts` on retry is not stated in the docs.
  */
 final class PaddleSignatureVerifier implements WebhookSignatureVerifier
 {
@@ -41,6 +45,8 @@ final class PaddleSignatureVerifier implements WebhookSignatureVerifier
                 continue;
             }
             [$key, $value] = explode('=', $part, 2);
+            $key = trim($key);
+            $value = trim($value);
             if ($key === 'ts') {
                 $ts = $value;
             } elseif ($key === 'h1' && $value !== '') {
@@ -60,7 +66,7 @@ final class PaddleSignatureVerifier implements WebhookSignatureVerifier
         $expected = hash_hmac('sha256', $ts.':'.$rawBody, $secret);
 
         foreach ($signatures as $got) {
-            if (hash_equals($expected, $got)) {
+            if (Signature::equals($expected, $got)) {
                 return true;
             }
         }

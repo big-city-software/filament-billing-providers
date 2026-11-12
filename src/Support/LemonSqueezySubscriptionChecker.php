@@ -5,16 +5,13 @@ declare(strict_types=1);
 namespace SegmentHoldings\FilamentBillingProviders\Support;
 
 /**
- * Lemon Squeezy subscription check stub (v0.1: same config map as Polar).
+ * Lemon Squeezy gate: callback, then subscribed_tenants, then
+ * billing_subscriptions rows with provider "lemon_squeezy".
  */
-final class LemonSqueezySubscriptionChecker implements SubscriptionChecker
+final class LemonSqueezySubscriptionChecker extends ProviderSubscriptionChecker
 {
-    public function __construct(
-        private readonly ConfigSubscriptionChecker $inner = new ConfigSubscriptionChecker,
-    ) {}
-
-    public function isSubscribed(mixed $tenant): bool
+    protected function providerKey(): string
     {
-        return $this->inner->isSubscribed($tenant);
+        return 'lemon_squeezy';
     }
 }

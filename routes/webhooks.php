@@ -15,51 +15,60 @@ use SegmentHoldings\FilamentBillingProviders\Http\Controllers\PolarWebhookContro
 | Loaded by FilamentBillingProvidersServiceProvider when
 | config('filament-billing-providers.webhooks.enabled') is true.
 |
-| These closures keep the controllers unit-testable (handle raw body +
-| headers) without requiring a full Illuminate Request in PHPUnit.
+| These routes are not placed in the `web` middleware group, so they are
+| not covered by session CSRF. ValidateCsrfToken / VerifyCsrfToken are
+| removed explicitly in case an application wraps the group later.
+|
+| Headers come from the HeaderBag property. Request::headers is not a method.
 |
 */
 
 $prefix = trim((string) config('filament-billing-providers.webhooks.path', 'webhooks/filament-billing'), '/');
 
-Route::post($prefix.'/polar', static function () {
-    $request = request();
-    $raw = method_exists($request, 'getContent') ? (string) $request->getContent() : '';
-    $headers = method_exists($request, 'headers') ? $request->headers->all() : [];
-    $secret = (string) config('filament-billing-providers.providers.polar.webhook_secret', '');
+$csrf = array_values(array_filter([
+    \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
+    \Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class,
+], 'class_exists'));
 
-    $result = (new PolarWebhookController)->handle($raw, $headers, $secret);
-
+$respond = static function (array $result) {
     return response()->json(
-        ['received' => $result['ok'], 'error' => $result['error']],
+        [
+            'received' => $result['ok'],
+            'ignored' => $result['ignored'],
+            'duplicate' => $result['duplicate'],
+            'reason' => $result['reason'],
+            'error' => $result['error'],
+        ],
         $result['status'],
     );
-})->name('filament-billing-providers.webhooks.polar');
+};
 
-Route::post($prefix.'/paddle', static function () {
+Route::post($prefix.'/polar', static function () use ($respond) {
     $request = request();
-    $raw = method_exists($request, 'getContent') ? (string) $request->getContent() : '';
-    $headers = method_exists($request, 'headers') ? $request->headers->all() : [];
-    $secret = (string) config('filament-billing-providers.providers.paddle.webhook_secret', '');
 
-    $result = (new PaddleWebhookController)->handle($raw, $headers, $secret);
+    return $respond(app(PolarWebhookController::class)->handle(
+        $request->getContent(),
+        $request->headers->all(),
+        (string) config('filament-billing-providers.providers.polar.webhook_secret', ''),
+    ));
+})->name('filament-billing-providers.webhooks.polar')->withoutMiddleware($csrf);
 
-    return response()->json(
-        ['received' => $result['ok'], 'error' => $result['error']],
-        $result['status'],
-    );
-})->name('filament-billing-providers.webhooks.paddle');
-
-Route::post($prefix.'/lemon-squeezy', static function () {
+Route::post($prefix.'/paddle', static function () use ($respond) {
     $request = request();
-    $raw = method_exists($request, 'getContent') ? (string) $request->getContent() : '';
-    $headers = method_exists($request, 'headers') ? $request->headers->all() : [];
-    $secret = (string) config('filament-billing-providers.providers.lemon_squeezy.webhook_secret', '');
 
-    $result = (new LemonSqueezyWebhookController)->handle($raw, $headers, $secret);
+    return $respond(app(PaddleWebhookController::class)->handle(
+        $request->getContent(),
+        $request->headers->all(),
+        (string) config('filament-billing-providers.providers.paddle.webhook_secret', ''),
+    ));
+})->name('filament-billing-providers.webhooks.paddle')->withoutMiddleware($csrf);
 
-    return response()->json(
-        ['received' => $result['ok'], 'error' => $result['error']],
-        $result['status'],
-    );
-})->name('filament-billing-providers.webhooks.lemon-squeezy');
+Route::post($prefix.'/lemon-squeezy', static function () use ($respond) {
+    $request = request();
+
+    return $respond(app(LemonSqueezyWebhookController::class)->handle(
+        $request->getContent(),
+        $request->headers->all(),
+        (string) config('filament-billing-providers.providers.lemon_squeezy.webhook_secret', ''),
+    ));
+})->name('filament-billing-providers.webhooks.lemon-squeezy')->withoutMiddleware($csrf);

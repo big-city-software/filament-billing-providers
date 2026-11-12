@@ -7,46 +7,33 @@ namespace SegmentHoldings\FilamentBillingProviders\Tests\Unit;
 use Filament\Facades\Filament;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use PHPUnit\Framework\TestCase;
 use SegmentHoldings\FilamentBillingProviders\Http\Middleware\RedirectIfTenantNotSubscribed;
 use SegmentHoldings\FilamentBillingProviders\Support\ConfigSubscriptionChecker;
 use SegmentHoldings\FilamentBillingProviders\Support\PolarSubscriptionChecker;
+use SegmentHoldings\FilamentBillingProviders\Tests\TestCase;
 
 final class RedirectIfTenantNotSubscribedTest extends TestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
-        Filament::reset();
 
         config([
-            'filament-billing-providers' => [
-                'default' => 'polar',
-                'subscribed_tenants' => [],
-                'checker_callback' => null,
-                'providers' => [],
-            ],
+            'filament-billing-providers.default' => 'polar',
+            'filament-billing-providers.subscribed_tenants' => [],
+            'filament-billing-providers.checker_callback' => null,
         ]);
     }
 
     protected function tearDown(): void
     {
-        Filament::reset();
+        Filament::clearResolvedInstances();
         parent::tearDown();
     }
 
     public function test_allows_subscribed_tenant(): void
     {
-        $tenant = new class
-        {
-            public function getKey(): string
-            {
-                return '42';
-            }
-        };
-
-        Filament::setTenant($tenant);
-        Filament::setTenantBillingUrl('/admin/billing');
+        $this->bindFilamentTenant('42');
 
         config([
             'filament-billing-providers.subscribed_tenants' => [
@@ -69,16 +56,7 @@ final class RedirectIfTenantNotSubscribedTest extends TestCase
 
     public function test_redirects_unsubscribed_tenant_to_billing_url(): void
     {
-        $tenant = new class
-        {
-            public function getKey(): string
-            {
-                return '99';
-            }
-        };
-
-        Filament::setTenant($tenant);
-        Filament::setTenantBillingUrl('/admin/billing');
+        $this->bindFilamentTenant('99');
 
         config([
             'filament-billing-providers.subscribed_tenants' => [
@@ -94,19 +72,12 @@ final class RedirectIfTenantNotSubscribedTest extends TestCase
 
         $this->assertInstanceOf(RedirectResponse::class, $response);
         $this->assertSame('/admin/billing', $response->getTargetUrl());
+        $this->assertSame(302, $response->getStatusCode());
     }
 
     public function test_checker_callback_wins_over_map(): void
     {
-        $tenant = new class
-        {
-            public function getKey(): string
-            {
-                return '1';
-            }
-        };
-
-        Filament::setTenant($tenant);
+        $this->bindFilamentTenant('1');
 
         config([
             'filament-billing-providers.subscribed_tenants' => ['1' => false],

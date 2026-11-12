@@ -14,10 +14,12 @@ use SegmentHoldings\FilamentBillingProviders\Support\PolarSubscriptionChecker;
 use SegmentHoldings\FilamentBillingProviders\Support\SubscriptionChecker;
 
 /**
- * Config-driven tenant subscription gate for Filament panels.
+ * Tenant subscription gate for Filament panels.
  *
- * Reads filament-billing-providers.default to pick a SubscriptionChecker.
- * Unsubscribed tenants are sent to the panel tenant billing URL.
+ * Reads filament-billing-providers.default to pick a SubscriptionChecker
+ * (callback, then subscribed_tenants, then the local subscription table).
+ * Tenants that are not entitled are sent to the panel tenant billing URL.
+ * Past-due, paused, and canceled rows are not entitled.
  */
 final class RedirectIfTenantNotSubscribed
 {

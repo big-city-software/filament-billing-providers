@@ -14,8 +14,8 @@ use SegmentHoldings\FilamentBillingProviders\Support\CheckoutUrlBuilder;
 /**
  * Shared Filament billing Provider for Polar / Paddle / Lemon Squeezy.
  *
- * Implements Filament\Billing\Providers\Contracts\Provider (Filament 3).
- * Compatibility.php aliases BillingProvider → Provider on Filament 4.
+ * Implements Filament\Billing\Providers\Contracts\Provider, which
+ * Compatibility.php aliases to BillingProvider on Filament 4 and 5.
  */
 abstract class AbstractBillingProvider implements Provider
 {

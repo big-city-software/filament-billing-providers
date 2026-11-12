@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace SegmentHoldings\FilamentBillingProviders\Tests\Unit;
 
 use Illuminate\Http\RedirectResponse;
-use PHPUnit\Framework\TestCase;
 use SegmentHoldings\FilamentBillingProviders\Http\Middleware\RedirectIfTenantNotSubscribed;
+use SegmentHoldings\FilamentBillingProviders\Tests\TestCase;
 use SegmentHoldings\FilamentBillingProviders\Providers\LemonSqueezyBillingProvider;
 use SegmentHoldings\FilamentBillingProviders\Providers\PaddleBillingProvider;
 use SegmentHoldings\FilamentBillingProviders\Providers\PolarBillingProvider;
