@@ -25,7 +25,7 @@ Filament's billing contract (Filament 5): https://filamentphp.com/docs/5.x/users
 ## Requirements
 
 - PHP ^8.2
-- Laravel 11.28+, 12, or 13 (`illuminate/support` `^11.28 || ^12.0 || ^13.0`)
+- Laravel 12.69+ or 13.30+ (`illuminate/support` `^12.69 || ^13.30`)
 - Filament `^4.15 || ^5.10`
 
 Filament 4 and 5 both expose `Filament\Billing\Providers\Contracts\BillingProvider`. `src/Compatibility.php` aliases that interface to `Provider`, which these classes implement.
@@ -284,10 +284,12 @@ The suite uses Orchestra Testbench, real Filament, and real Laravel. SQLite in m
 
 GitHub Actions (`.github/workflows/tests.yml`) runs that suite on:
 
-- PHP 8.2, Laravel 11, Filament ^4.15
+- PHP 8.2, Laravel 12, Filament ^4.15
 - PHP 8.3, Laravel 12, Filament ^4.15
 - PHP 8.4, Laravel 12, Filament ^5.10
 - PHP 8.4, Laravel 13, Filament ^5.10
+
+Laravel 11 is not supported. The 11.x releases current Testbench can install (11.56–11.57) are inside Packagist advisories that were fixed on 12.69+ and 13.30+ and not on 11.x, including [PKSA-d5tc-s1qs-h781](https://packagist.org/security-advisories/PKSA-d5tc-s1qs-h781) (`<12.69.0`, which covers all of 11) and [PKSA-mdq4-51ck-6kdq](https://packagist.org/security-advisories/PKSA-mdq4-51ck-6kdq) (`>=11.0.0,<12.0.0`). Composer on GitHub Actions refuses to install them.
 
 ## Gaps before a free directory listing
 
@@ -301,7 +303,7 @@ GitHub Actions (`.github/workflows/tests.yml`) runs that suite on:
 - Paddle's default tolerance here is 300 seconds, not the SDK's 5 seconds.
 - New subscription event names a provider adds later are ignored until the allowlist is updated.
 - `paused` does not grant access. Confirm that against Lemon Squeezy if paused customers should keep the product.
-- Filament 3 is unsupported.
+- Filament 3 is unsupported. Laravel 11 is unsupported.
 
 ## License
 

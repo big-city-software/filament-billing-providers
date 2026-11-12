@@ -22,7 +22,7 @@ All notable changes to `big-city-software/filament-billing-providers` will be do
 - Subscription status is taken from the provider status field on an allowlisted subscription event. A Polar `subscription.canceled` payload that still has status `active` stays entitled until `subscription.revoked`
 - Lemon Squeezy `cancelled` stays entitled until `ends_at`. `subscription_payment_*` invoice events are ignored
 - Filament constraint is `^4.15 || ^5.10` so Composer cannot select 4.11.7 or any other release inside the published Filament MFA advisories (fixed in 4.15.0 and 5.10.0). Filament 3 is not supported: bug-fix support ended 2026-08-01
-- `illuminate/support` is `^11.28 || ^12.0 || ^13.0`
+- `illuminate/support` is `^12.69 || ^13.30`. Laravel 11 is not supported: the 11.56–11.57 releases Testbench can install are inside Packagist advisories fixed on 12.69+ and 13.30+ (PKSA-d5tc-s1qs-h781, PKSA-mdq4-51ck-6kdq) and Composer will not install them
 - Checkout is still a configured URL redirect. This release does not call provider billing APIs
 - Composer package name is `big-city-software/filament-billing-providers` (previously `segment-holdings/filament-billing-providers`). The PHP namespace stays `SegmentHoldings\FilamentBillingProviders`
 - Docs and Composer `homepage` / `support` URLs point at https://github.com/big-city-software/filament-billing-providers
