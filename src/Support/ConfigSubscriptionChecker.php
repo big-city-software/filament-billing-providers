@@ -5,10 +5,25 @@ declare(strict_types=1);
 namespace SegmentHoldings\FilamentBillingProviders\Support;
 
 /**
- * Shared v0.1 checker: optional callback, then subscribed_tenants map.
+ * Shared checker: optional callback, then an explicit subscribed_tenants entry.
+ *
+ * A missing map key is not a decision. Provider checkers fall through to the
+ * database in that case. A present key, including false, is a decision and
+ * wins over the database. A callable checker_callback wins over both.
  */
 final class ConfigSubscriptionChecker implements SubscriptionChecker
 {
+    public function hasExplicitDecision(mixed $tenant): bool
+    {
+        $callback = config('filament-billing-providers.checker_callback');
+
+        if (is_callable($callback)) {
+            return true;
+        }
+
+        return $this->mapValue($tenant) !== null;
+    }
+
     public function isSubscribed(mixed $tenant): bool
     {
         $callback = config('filament-billing-providers.checker_callback');
@@ -21,28 +36,35 @@ final class ConfigSubscriptionChecker implements SubscriptionChecker
             return false;
         }
 
+        $value = $this->mapValue($tenant);
+
+        return $value === null ? false : $value;
+    }
+
+    private function mapValue(mixed $tenant): ?bool
+    {
         $id = $this->resolveTenantId($tenant);
 
         if ($id === null) {
-            return false;
+            return null;
         }
 
         $map = config('filament-billing-providers.subscribed_tenants', []);
 
         if (! is_array($map)) {
-            return false;
+            return null;
         }
 
         if (array_key_exists($id, $map)) {
             return (bool) $map[$id];
         }
 
-        // Also accept integer keys that PHP cast from string numeric keys
+        // Also accept integer keys that PHP cast from string numeric keys.
         if (ctype_digit($id) && array_key_exists((int) $id, $map)) {
             return (bool) $map[(int) $id];
         }
 
-        return false;
+        return null;
     }
 
     private function resolveTenantId(mixed $tenant): ?string

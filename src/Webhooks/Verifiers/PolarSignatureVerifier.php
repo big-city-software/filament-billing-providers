@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SegmentHoldings\FilamentBillingProviders\Webhooks\Verifiers;
 
 use SegmentHoldings\FilamentBillingProviders\Contracts\WebhookSignatureVerifier;
+use SegmentHoldings\FilamentBillingProviders\Webhooks\Signature;
 
 /**
  * Polar webhook signature verifier (Standard Webhooks style).
@@ -18,7 +19,11 @@ use SegmentHoldings\FilamentBillingProviders\Contracts\WebhookSignatureVerifier;
  * - Legacy Polar HMAC: UTF-8 bytes of the full secret (including "whsec_")
  * - Standard Webhooks: base64-decode the part after "whsec_"
  *
- * Timestamp tolerance defaults to ±300 seconds (Standard Webhooks).
+ * The Standard Webhooks spec requires a timestamp tolerance but does not fix
+ * the number of seconds. The reference libraries use five minutes:
+ * https://github.com/standard-webhooks/standard-webhooks/blob/main/spec/standard-webhooks.md
+ * https://github.com/standard-webhooks/standard-webhooks/blob/main/libraries/javascript/src/index.ts
+ * This verifier defaults to ±300 seconds. webhooks.tolerance_seconds.polar overrides it.
  */
 final class PolarSignatureVerifier implements WebhookSignatureVerifier
 {
@@ -56,7 +61,7 @@ final class PolarSignatureVerifier implements WebhookSignatureVerifier
         foreach ($this->keysForSecret($secret) as $key) {
             $expected = hash_hmac('sha256', $signed, $key, true);
             foreach ($candidates as $got) {
-                if (hash_equals($expected, $got)) {
+                if (Signature::equals($expected, $got)) {
                     return true;
                 }
             }

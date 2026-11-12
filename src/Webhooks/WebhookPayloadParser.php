@@ -5,85 +5,251 @@ declare(strict_types=1);
 namespace SegmentHoldings\FilamentBillingProviders\Webhooks;
 
 use SegmentHoldings\FilamentBillingProviders\Dto\SubscriptionState;
+use SegmentHoldings\FilamentBillingProviders\Support\TenantResolver;
 
 /**
- * Best-effort JSON payload → SubscriptionState for each provider.
+ * Maps a verified JSON body onto SubscriptionState.
  *
- * Field paths are based on public docs / common shapes. Unknown payloads
- * return STATUS_UNKNOWN so callers can still ack without gating wrongly.
+ * Only explicit subscription lifecycle events are relevant. Everything else
+ * (orders, invoices, customers, unknown types) is ignored: status is unknown
+ * and relevant is false. Status comes from the subscription status field,
+ * not from substrings of the event name. Polar’s subscription.canceled event
+ * still carries status "active" until subscription.revoked; that status is
+ * what decides access.
+ *
+ * Field sources (checked against provider docs, November 2026):
+ * - Polar subscription schema (status, current_period_end, metadata,
+ *   custom_field_data, customer_id, modified_at):
+ *   https://polar.sh/docs/api-reference/2026-10/subscriptions/list-subscriptions
+ * - Polar event names and cancel-at-period-end behavior:
+ *   https://polar.sh/docs/integrate/webhooks/events
+ * - Polar checkout custom fields land on custom_field_data:
+ *   https://polar.sh/docs/features/custom-fields
+ * - Paddle envelope (event_id, event_type, occurred_at, notification_id, data):
+ *   https://developer.paddle.com/webhooks/about/how-webhooks-work
+ * - Paddle subscription status, custom_data, current_billing_period.ends_at:
+ *   https://developer.paddle.com/webhooks/subscriptions/subscription-activated
+ * - Lemon Squeezy webhook meta.custom_data and event names:
+ *   https://docs.lemonsqueezy.com/help/webhooks/webhook-requests
+ *   https://docs.lemonsqueezy.com/help/webhooks/event-types
+ *   https://docs.lemonsqueezy.com/help/checkout/passing-custom-data
+ *   The Subscription object schema does not list custom_data on attributes.
+ *   data.attributes.custom_data is still checked (unverified provider field).
+ * - Lemon Squeezy subscription status, renews_at, ends_at, customer_id:
+ *   https://docs.lemonsqueezy.com/api/subscriptions/the-subscription-object
+ *
+ * Lemon Squeezy does not document an event id. The idempotency key is
+ * sha256 of the raw body (this package’s convention). Whether a retry is
+ * byte-identical is not stated in their webhook docs.
+ *
+ * Lemon Squeezy subscription_payment_* events carry a subscription invoice,
+ * not a subscription. They are ignored so an invoice status is not stored
+ * as the subscription status.
  */
 final class WebhookPayloadParser
 {
-    public function parsePolar(string $rawBody): SubscriptionState
+    /**
+     * Subscription object events. Order and customer events are not included.
+     *
+     * @var list<string>
+     */
+    private const POLAR_EVENTS = [
+        'subscription.created',
+        'subscription.active',
+        'subscription.uncanceled',
+        'subscription.cycled',
+        'subscription.canceled',
+        'subscription.past_due',
+        'subscription.updated',
+        'subscription.revoked',
+        'subscription.paused',
+        'subscription.resumed',
+        'subscription.migrated',
+    ];
+
+    /**
+     * Paddle notifications whose data payload is a Subscription entity.
+     *
+     * @var list<string>
+     */
+    private const PADDLE_EVENTS = [
+        'subscription.activated',
+        'subscription.canceled',
+        'subscription.created',
+        'subscription.imported',
+        'subscription.past_due',
+        'subscription.paused',
+        'subscription.resumed',
+        'subscription.trialing',
+        'subscription.updated',
+    ];
+
+    /**
+     * Events that send a Subscription object. Invoice events are excluded.
+     *
+     * @var list<string>
+     */
+    private const LEMON_SQUEEZY_EVENTS = [
+        'subscription_created',
+        'subscription_updated',
+        'subscription_cancelled',
+        'subscription_resumed',
+        'subscription_expired',
+        'subscription_paused',
+        'subscription_unpaused',
+    ];
+
+    public function __construct(
+        private readonly TenantResolver $tenants = new TenantResolver,
+    ) {}
+
+    /**
+     * @param  array<string, string|list<string>>  $headers
+     */
+    public function parsePolar(string $rawBody, array $headers = []): SubscriptionState
     {
         $data = $this->json($rawBody);
         $type = (string) ($data['type'] ?? '');
         $payload = is_array($data['data'] ?? null) ? $data['data'] : [];
-        $meta = is_array($payload['metadata'] ?? null) ? $payload['metadata'] : [];
+        $relevant = in_array($type, self::POLAR_EVENTS, true);
 
-        return new SubscriptionState(
+        return $this->state(
             provider: 'polar',
-            status: $this->statusFromHints($type, (string) ($payload['status'] ?? ''), [
-                'active' => ['active', 'created', 'updated', 'uncanceled'],
-                'past_due' => ['past_due', 'payment_failed'],
-                'canceled' => ['canceled', 'cancelled', 'revoked', 'expired'],
-            ]),
-            tenantId: $meta['tenant_id'] ?? $meta['tenantId'] ?? null,
-            subscriptionId: isset($payload['id']) ? (string) $payload['id'] : null,
-            customerId: isset($payload['customer_id'])
-                ? (string) $payload['customer_id']
-                : (isset($payload['user_id']) ? (string) $payload['user_id'] : null),
+            relevant: $relevant,
+            providerStatus: $relevant ? $this->stringOrNull($payload['status'] ?? null) : null,
+            tenantId: $relevant ? $this->tenants->resolve('polar', $data) : null,
+            subscriptionId: $relevant ? $this->stringOrNull($payload['id'] ?? null) : null,
+            customerId: $relevant ? $this->stringOrNull($payload['customer_id'] ?? null) : null,
             eventType: $type !== '' ? $type : null,
+            eventId: $this->header($headers, 'webhook-id'),
+            currentPeriodEnd: $relevant ? $this->stringOrNull($payload['current_period_end'] ?? null) : null,
+            occurredAt: $relevant ? $this->stringOrNull($payload['modified_at'] ?? null) : null,
             raw: $data,
         );
     }
 
-    public function parsePaddle(string $rawBody): SubscriptionState
+    /**
+     * @param  array<string, string|list<string>>  $headers
+     */
+    public function parsePaddle(string $rawBody, array $headers = []): SubscriptionState
     {
         $data = $this->json($rawBody);
         $type = (string) ($data['event_type'] ?? '');
         $payload = is_array($data['data'] ?? null) ? $data['data'] : [];
-        $custom = is_array($payload['custom_data'] ?? null) ? $payload['custom_data'] : [];
+        $relevant = in_array($type, self::PADDLE_EVENTS, true);
+        $period = is_array($payload['current_billing_period'] ?? null) ? $payload['current_billing_period'] : [];
 
-        return new SubscriptionState(
+        return $this->state(
             provider: 'paddle',
-            status: $this->statusFromHints($type, (string) ($payload['status'] ?? ''), [
-                'active' => ['activated', 'created', 'resumed', 'trialing', 'imported'],
-                'past_due' => ['past_due'],
-                'canceled' => ['canceled', 'cancelled'],
-            ]),
-            tenantId: $custom['tenant_id'] ?? $custom['tenantId'] ?? null,
-            subscriptionId: isset($payload['id']) ? (string) $payload['id'] : null,
-            customerId: isset($payload['customer_id']) ? (string) $payload['customer_id'] : null,
+            relevant: $relevant,
+            providerStatus: $relevant ? $this->stringOrNull($payload['status'] ?? null) : null,
+            tenantId: $relevant ? $this->tenants->resolve('paddle', $data) : null,
+            subscriptionId: $relevant ? $this->stringOrNull($payload['id'] ?? null) : null,
+            customerId: $relevant ? $this->stringOrNull($payload['customer_id'] ?? null) : null,
             eventType: $type !== '' ? $type : null,
+            eventId: $this->stringOrNull($data['event_id'] ?? null),
+            currentPeriodEnd: $relevant ? $this->stringOrNull($period['ends_at'] ?? null) : null,
+            occurredAt: $this->stringOrNull($data['occurred_at'] ?? null),
             raw: $data,
         );
     }
 
-    public function parseLemonSqueezy(string $rawBody): SubscriptionState
+    /**
+     * @param  array<string, string|list<string>>  $headers
+     */
+    public function parseLemonSqueezy(string $rawBody, array $headers = []): SubscriptionState
     {
         $data = $this->json($rawBody);
         $meta = is_array($data['meta'] ?? null) ? $data['meta'] : [];
         $type = (string) ($meta['event_name'] ?? '');
+        if ($type === '') {
+            $type = $this->header($headers, 'x-event-name') ?? '';
+        }
         $resource = is_array($data['data'] ?? null) ? $data['data'] : [];
         $attrs = is_array($resource['attributes'] ?? null) ? $resource['attributes'] : [];
-        $custom = is_array($attrs['custom_data'] ?? null)
-            ? $attrs['custom_data']
-            : (is_array($meta['custom_data'] ?? null) ? $meta['custom_data'] : []);
+        $relevant = in_array($type, self::LEMON_SQUEEZY_EVENTS, true);
+        $providerStatus = $relevant ? $this->stringOrNull($attrs['status'] ?? null) : null;
 
-        return new SubscriptionState(
+        return $this->state(
             provider: 'lemon_squeezy',
-            status: $this->statusFromHints($type, (string) ($attrs['status'] ?? ''), [
-                'active' => ['created', 'resumed', 'payment_success', 'updated', 'plan_changed'],
-                'past_due' => ['payment_failed', 'past_due'],
-                'canceled' => ['cancelled', 'canceled', 'expired', 'unsubscribed'],
-            ]),
-            tenantId: $custom['tenant_id'] ?? $custom['tenantId'] ?? null,
-            subscriptionId: isset($resource['id']) ? (string) $resource['id'] : null,
-            customerId: isset($attrs['customer_id']) ? (string) $attrs['customer_id'] : null,
+            relevant: $relevant,
+            providerStatus: $providerStatus,
+            tenantId: $relevant ? $this->tenants->resolve('lemon_squeezy', $data) : null,
+            subscriptionId: $relevant ? $this->stringOrNull($resource['id'] ?? null) : null,
+            customerId: $relevant ? $this->stringOrNull($attrs['customer_id'] ?? null) : null,
             eventType: $type !== '' ? $type : null,
+            eventId: 'sha256:'.hash('sha256', $rawBody),
+            currentPeriodEnd: $relevant ? $this->lemonPeriodEnd($providerStatus, $attrs) : null,
+            occurredAt: $relevant ? $this->stringOrNull($attrs['updated_at'] ?? null) : null,
             raw: $data,
         );
+    }
+
+    /**
+     * @param  array<string, mixed>  $raw
+     */
+    private function state(
+        string $provider,
+        bool $relevant,
+        ?string $providerStatus,
+        string|int|null $tenantId,
+        ?string $subscriptionId,
+        ?string $customerId,
+        ?string $eventType,
+        ?string $eventId,
+        ?string $currentPeriodEnd,
+        ?string $occurredAt,
+        array $raw,
+    ): SubscriptionState {
+        $status = $relevant ? $this->normalizeStatus($providerStatus) : null;
+
+        return new SubscriptionState(
+            provider: $provider,
+            status: $status ?? SubscriptionState::STATUS_UNKNOWN,
+            tenantId: $tenantId,
+            subscriptionId: $subscriptionId,
+            customerId: $customerId,
+            eventType: $eventType,
+            raw: $raw,
+            eventId: $eventId,
+            currentPeriodEnd: $currentPeriodEnd,
+            providerStatus: $providerStatus,
+            occurredAt: $occurredAt,
+            relevant: $relevant && $status !== null,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private function lemonPeriodEnd(?string $providerStatus, array $attributes): ?string
+    {
+        $status = strtolower((string) $providerStatus);
+
+        if (in_array($status, ['cancelled', 'canceled', 'expired'], true)) {
+            return $this->stringOrNull($attributes['ends_at'] ?? null);
+        }
+
+        if ($status === 'on_trial') {
+            return $this->stringOrNull($attributes['trial_ends_at'] ?? null)
+                ?? $this->stringOrNull($attributes['renews_at'] ?? null);
+        }
+
+        return $this->stringOrNull($attributes['renews_at'] ?? null);
+    }
+
+    private function normalizeStatus(?string $status): ?string
+    {
+        return match (strtolower((string) $status)) {
+            'active' => SubscriptionState::STATUS_ACTIVE,
+            'trialing', 'on_trial' => SubscriptionState::STATUS_TRIALING,
+            'past_due' => SubscriptionState::STATUS_PAST_DUE,
+            'paused' => SubscriptionState::STATUS_PAUSED,
+            'unpaid' => SubscriptionState::STATUS_UNPAID,
+            'incomplete' => SubscriptionState::STATUS_INCOMPLETE,
+            'canceled', 'cancelled', 'revoked', 'expired', 'incomplete_expired' => SubscriptionState::STATUS_CANCELED,
+            default => null,
+        };
     }
 
     /**
@@ -96,44 +262,33 @@ final class WebhookPayloadParser
         return is_array($decoded) ? $decoded : [];
     }
 
-    /**
-     * Prefer explicit status field; fall back to event-type substring hints.
-     *
-     * @param  array{active: list<string>, past_due: list<string>, canceled: list<string>}  $hints
-     */
-    private function statusFromHints(string $eventType, string $status, array $hints): string
+    private function stringOrNull(mixed $value): ?string
     {
-        $normalized = strtolower($status);
+        if (! is_scalar($value)) {
+            return null;
+        }
 
-        return match ($normalized) {
-            'active', 'trialing', 'on_trial', 'paused' => SubscriptionState::STATUS_ACTIVE,
-            'past_due' => SubscriptionState::STATUS_PAST_DUE,
-            'canceled', 'cancelled', 'revoked', 'expired' => SubscriptionState::STATUS_CANCELED,
-            default => $this->hintFromEventType(strtolower($eventType), $hints),
-        };
+        $string = trim((string) $value);
+
+        return $string === '' ? null : $string;
     }
 
     /**
-     * @param  array{active: list<string>, past_due: list<string>, canceled: list<string>}  $hints
+     * @param  array<string, string|list<string>>  $headers
      */
-    private function hintFromEventType(string $eventType, array $hints): string
+    private function header(array $headers, string $name): ?string
     {
-        foreach ($hints['past_due'] as $needle) {
-            if ($needle !== '' && str_contains($eventType, $needle)) {
-                return SubscriptionState::STATUS_PAST_DUE;
+        foreach ($headers as $key => $value) {
+            if (strcasecmp((string) $key, $name) !== 0) {
+                continue;
             }
-        }
-        foreach ($hints['canceled'] as $needle) {
-            if ($needle !== '' && str_contains($eventType, $needle)) {
-                return SubscriptionState::STATUS_CANCELED;
-            }
-        }
-        foreach ($hints['active'] as $needle) {
-            if ($needle !== '' && str_contains($eventType, $needle)) {
-                return SubscriptionState::STATUS_ACTIVE;
-            }
+
+            $first = is_array($value) ? ($value[0] ?? '') : $value;
+            $string = trim((string) $first);
+
+            return $string === '' ? null : $string;
         }
 
-        return SubscriptionState::STATUS_UNKNOWN;
+        return null;
     }
 }

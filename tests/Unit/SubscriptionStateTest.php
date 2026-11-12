@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace SegmentHoldings\FilamentBillingProviders\Tests\Unit;
 
-use PHPUnit\Framework\TestCase;
 use SegmentHoldings\FilamentBillingProviders\Dto\SubscriptionState;
+use SegmentHoldings\FilamentBillingProviders\Tests\TestCase;
 use SegmentHoldings\FilamentBillingProviders\Events\PastDue;
 use SegmentHoldings\FilamentBillingProviders\Events\Subscribed;
 use SegmentHoldings\FilamentBillingProviders\Events\Unsubscribed;
@@ -35,9 +35,38 @@ final class SubscriptionStateTest extends TestCase
         $this->assertInstanceOf(Unsubscribed::class, $factory->make(
             new SubscriptionState('polar', SubscriptionState::STATUS_CANCELED),
         ));
-        $this->assertInstanceOf(Unsubscribed::class, $factory->make(
+        $this->assertNull($factory->make(
             new SubscriptionState('polar', SubscriptionState::STATUS_UNKNOWN),
         ));
+        $this->assertNull($factory->make(
+            new SubscriptionState('polar', SubscriptionState::STATUS_ACTIVE, relevant: false),
+        ));
+    }
+
+    public function test_unknown_provider_events_are_not_relevant(): void
+    {
+        $parser = new WebhookPayloadParser;
+
+        $order = $parser->parsePolar('{"type":"order.created","data":{"id":"ord_1","status":"paid","metadata":{"tenant_id":"7"}}}');
+        $this->assertFalse($order->relevant);
+        $this->assertSame(SubscriptionState::STATUS_UNKNOWN, $order->status);
+
+        $customer = $parser->parsePaddle('{"event_id":"evt_x","event_type":"customer.updated","data":{"id":"ctm_1","status":"active"}}');
+        $this->assertFalse($customer->relevant);
+
+        $invoice = $parser->parseLemonSqueezy('{"meta":{"event_name":"subscription_payment_success"},"data":{"id":"inv_1","attributes":{"status":"paid"}}}');
+        $this->assertFalse($invoice->relevant);
+    }
+
+    public function test_polar_canceled_event_keeps_active_status(): void
+    {
+        $parser = new WebhookPayloadParser;
+        $state = $parser->parsePolar('{"type":"subscription.canceled","data":{"id":"s1","status":"active","cancel_at_period_end":true,"metadata":{"tenant_id":"7"}}}');
+
+        $this->assertTrue($state->relevant);
+        $this->assertSame(SubscriptionState::STATUS_ACTIVE, $state->status);
+        $this->assertTrue($state->grantsAccess());
+        $this->assertInstanceOf(Subscribed::class, (new WebhookEventFactory)->make($state));
     }
 
     public function test_payload_parser_extracts_tenant_from_each_provider(): void

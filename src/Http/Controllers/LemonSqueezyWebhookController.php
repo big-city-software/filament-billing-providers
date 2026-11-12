@@ -20,8 +20,11 @@ final class LemonSqueezyWebhookController extends AbstractWebhookController
         parent::__construct($verifier ?? new LemonSqueezySignatureVerifier);
     }
 
-    protected function parse(string $rawBody): SubscriptionState
+    /**
+     * @param  array<string, string|list<string>>  $headers
+     */
+    protected function parse(string $rawBody, array $headers): SubscriptionState
     {
-        return $this->parser->parseLemonSqueezy($rawBody);
+        return $this->parser->parseLemonSqueezy($rawBody, $headers);
     }
 }

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace SegmentHoldings\FilamentBillingProviders\Tests\Unit;
 
-use PHPUnit\Framework\TestCase;
 use SegmentHoldings\FilamentBillingProviders\Dto\SubscriptionState;
+use SegmentHoldings\FilamentBillingProviders\Tests\TestCase;
 use SegmentHoldings\FilamentBillingProviders\Events\PastDue;
 use SegmentHoldings\FilamentBillingProviders\Events\Subscribed;
 use SegmentHoldings\FilamentBillingProviders\Events\Unsubscribed;

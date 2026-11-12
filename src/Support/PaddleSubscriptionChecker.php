@@ -5,16 +5,13 @@ declare(strict_types=1);
 namespace SegmentHoldings\FilamentBillingProviders\Support;
 
 /**
- * Paddle subscription check stub (v0.1: same config map as Polar).
+ * Paddle gate: callback, then subscribed_tenants, then billing_subscriptions
+ * rows with provider "paddle".
  */
-final class PaddleSubscriptionChecker implements SubscriptionChecker
+final class PaddleSubscriptionChecker extends ProviderSubscriptionChecker
 {
-    public function __construct(
-        private readonly ConfigSubscriptionChecker $inner = new ConfigSubscriptionChecker,
-    ) {}
-
-    public function isSubscribed(mixed $tenant): bool
+    protected function providerKey(): string
     {
-        return $this->inner->isSubscribed($tenant);
+        return 'paddle';
     }
 }
